@@ -17,11 +17,12 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 email = 1
-
+local_tz = "Asia/Dhaka"
 source('r_scripts/load.R') #libraries
 source('r_scripts/UPAS_functions.R') #functions to clean, plot, summarize
+source('r_scripts/lascar_functions.R')
 
-
+sample_duration_thresholds = c(1296,1584)
 ```
 
 # Cleaning rules
@@ -32,15 +33,14 @@ source('r_scripts/UPAS_functions.R') #functions to clean, plot, summarize
 ``` {r load-data, cache = TRUE}
 
 # UPAS data import and check
-upasfilepath <- "~/Dropbox/World Bank CSCB Field Folder/Field Data/UPAS Data" 
+upasfilepath <- "/Users/ricardopiedrahita/Dropbox/IDCOL Bangladesh (shared)/Data/UPAS PM"
 
 file_list_upas <- list.files(upasfilepath, pattern='.txt|.TXT', full.names = T,recursive = T) %>% 
-  grep("DIAGNOSTIC", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  %>% 
-  grep("2021-3-9_34DACON_C_PS1473_C0214", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  
+  grep("DIAGNOSTIC", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  
 
-file_list_upas = file_list_upas[sapply(file_list_upas, file.size) > 10000]
+# file_list_upas = file_list_upas[sapply(file_list_upas, file.size) > 10000]
 
-upas_data = rbindlist(lapply(file_list_upas[1:9],read_upas),fill=TRUE) 
+upas_data = rbindlist(lapply(file_list_upas,read_upas),fill=TRUE) 
 
 
 upas_header <- rbindlist(lapply(file_list_upas,read_upas_header)) %>% 
@@ -49,14 +49,14 @@ upas_header <- rbindlist(lapply(file_list_upas,read_upas_header)) %>%
   dplyr::mutate(file_start_date = as.Date(StartDateTimeUTC),
                 CartridgeID = toupper(CartridgeID),
                 StartDateTimeLocal = with_tz(StartDateTimeUTC, 
-                                             tzone="Africa/Nairobi"),
+                                             tzone=local_tz),
                 date_start = date(StartDateTimeLocal)) %>%
   dplyr::select(-UPASfirmware,-LifetimeSampleCount,-LifetimeSampleRuntime,-GPSUTCOffset,ProgrammedStartDelay,-AppLock,-AppVersion,
                 -StartOnNextPowerUp,-LogInterval,-LogFileMode,-file_start_date,-DutyCycleWindow,-GPSEnabled,-ProgrammedStartDelay,
                 -StartBatteryCharge,-EndBatteryCharge,-ShutdownMode,-SampledRuntime,-VolumetricFlowRate,-FlowOffset)
 # dplyr::filter(date(StartDateTimeLocal) %in% date(field_log$excel_datetime_start) | 
 # hour(StartDateTimeLocal) == 0)
-
+DT::datatable(upas_header,caption = "UPAS summary data")
 ```
 
 # Import ODK
@@ -71,9 +71,27 @@ upas_header <- rbindlist(lapply(file_list_upas,read_upas_header)) %>%
 ```{r import_cooking}
 
 # UPAS data import and check
-sumsfilepath <- "~/Dropbox/World Bank CSCB Field Folder/Field Data/SUMS Data" 
+lascarfilepath <- "~/Dropbox/IDCOL Bangladesh (shared)/Data/Lascar CO" 
+file_list_lascar <- list.files(lascarfilepath, pattern='.txt|.TXT', full.names = T,recursive = T) # %>% 
+# grep("DIAGNOSTIC", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  
 
-file_list_sums <- list.files(sumsfilepath, pattern='.CSV|.csv', full.names = T,recursive = T) %>% 
+lascar_cali_coefs <- read_xlsx("~/Dropbox/IDCOL Bangladesh (shared)/Data/Lascar CO/Initial CO cal ests/IDCOL Lascar Calibrations_Jan2020Lascars.xlsx",skip = 1)  %>%
+  dplyr::rename_all(function(x) gsub(" ","", x)) %>% 
+  dplyr::rename(COslope = `CalibrationSlope[ppmLascar/ppmactual]`) %>% 
+  dplyr::distinct() 
+
+
+# Lascar data
+lascar_meta <- ldply(file_list_lascar, lascar_qa_fun, .progress = 'text',local_tz=local_tz)  
+DT::datatable(lascar_meta,caption = "Lascar data summary")
+
+# Time series Lascar - get full time series of calibrated data, with metadata.
+# Truncation is employed with the tagging approach - any non-tagged points are not from during the deployments
+CO_calibrated_timeseries <- ldply(file_list_lascar, 
+                                  lascar_cali_fun, .progress = 'text',local_tz=local_tz)  
+
+#This is pretty repetitive.
+file_lascar <- file_list_lascar %>% 
   grep("pilot", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  %>% 
   grep("2021-3-9_34DACON_C_PS1473_C0214", ., ignore.case = TRUE, value = TRUE, invert = TRUE) %>% 
   as.data.frame() %>% 
