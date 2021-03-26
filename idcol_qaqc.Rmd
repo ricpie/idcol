@@ -112,7 +112,9 @@ list_of_datasets <- list(
   "UPAS"=upas_header,
   "lascar" = lascar_meta)
 
-filename = paste0("~/Dropbox/World Bank CSCB Field Folder/Field Data/QA_Reports/CSCB_QA_Report_",  Sys.Date(), ".xlsx")
+        filename = paste0("~/Dropbox/IDCOL Bangladesh (shared)/Data/QA Reports/Instrument Plots/Lascar_",gsub(".csv",".png",plot_name))
+
+filename = paste0("~/Dropbox/IDCOL Bangladesh (shared)/Data/QA Reports/IDCOL_QA_Report_",  Sys.Date(), ".xlsx")
 write.xlsx(list_of_datasets,file = filename)
 
 source('r_scripts/emailfun.R')
