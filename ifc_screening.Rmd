@@ -1,0 +1,56 @@
+---
+title: "Screening_IFC"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: false
+    number_sections: true
+    highlight: pygments 
+    theme: cosmo
+    code_folding: hide
+    self_contained: no
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+source('r_scripts/load.R') #libraries
+```
+
+# IFC Biogas Customer Screening Data
+```{r load-data}
+# the raw download (first tab), the eligible households only (second tab), and the screened out household (third tab).
+
+
+screening_bio <- read_xlsx("odk data/IFC_Screening_biogas.xlsx", sheet = 2)
+
+
+# rename variables
+names(screening_bio) <- gsub(".*-", "", names(screening_bio))
+```
+
+```{r select-columns}
+ # Column L (B_Section2-B5_age) has the participants' ages, Column N (B_Section2-B7_howmanyadults) has household size, and Column AN (D_Ending-lsm) has the LSM scores.
+
+#B_Section2-B1_HHID, B_Section2-B5_age, B_Section2-B7_howmanyadults, D_Ending-lsm
+
+vars <- select(screening_bio, B1_HHID, B5_age, B7_howmanyadults, lsm)
+```
+
+## Age quantiles
+```{r age-quantiles}
+quantile(vars$B5_age, probs = seq(0,1, 0.1))
+```
+
+## HH Size quantiles
+```{r hh size-quantiles}
+quantile(vars$B7_howmanyadults, probs = seq(0,1, 0.1))
+```
+
+## LSM quantiles
+```{r lsm-quantiles}
+quantile(vars$lsm, probs = seq(0,1, 0.1))
+```
