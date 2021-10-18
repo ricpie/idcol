@@ -25,13 +25,14 @@ source('r_scripts/load.R') #libraries
 # the raw download (first tab), the eligible households only (second tab), and the screened out household (third tab).
 
 
-screening_bio <- read_xlsx("odk data/IFC_Screening_biogas.xlsx", sheet = 2)
+screening_bio <- read_xlsx("odk data/IFC_Screening_biogas_6Oct.xlsx", sheet = 2)
 
 
 # rename variables
 names(screening_bio) <- gsub(".*-", "", names(screening_bio))
 ```
 
+Entries: `r nrow(screening_bio)`
 ```{r select-columns}
  # Column L (B_Section2-B5_age) has the participants' ages, Column N (B_Section2-B7_howmanyadults) has household size, and Column AN (D_Ending-lsm) has the LSM scores.
 
