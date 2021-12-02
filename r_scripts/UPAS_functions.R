@@ -19,8 +19,6 @@
 
 read_upas_header <- function(file, update_names=FALSE){
   
-  require(dplyr)
-  
   header_lines <- readLines(file, n=103)
   
   n_max    <- grep("AverageVolumetricFlow", header_lines)
@@ -38,39 +36,39 @@ read_upas_header <- function(file, update_names=FALSE){
                                                      "CALIBRATION COEFFICIENTS"))]
   
   df <- sapply(strsplit(header_lines,","), `[`, 2) %>%
-        t() %>%
-        data.frame(stringsAsFactors=F)
+    t() %>%
+    data.frame(stringsAsFactors=F)
   
   colnames(df) <- sapply(strsplit(header_lines,","), `[`, 1)
   
   df <- df %>%
-        dplyr::mutate_at(c("UPASserial","GPSUTCOffset","StartOnNextPowerUp","ProgrammedStartDelay","ProgrammedRuntime",
-                           "VolumetricFlowRate","DutyCycle","DutyCycleWindow",
-                           "GPSEnabled","LogFileMode","LogInterval","AppLock",
-                           "StartBatteryCharge","StartBatteryVoltage","EndBatteryCharge","EndBatteryVoltage",
-                           "ShutdownMode","SampledVolume","SampledRuntime","LoggedRuntime"),
-                         as.numeric) %>%
-        dplyr::mutate_at(c("StartOnNextPowerUp", "GPSEnabled"), as.logical) %>%
-        dplyr::mutate(UPASfirmware    = sapply(strsplit(UPASfirmware,"-"), `[`, 2),
-                      UPASfirmware    = as.numeric(gsub("rev", "", UPASfirmware)),
-                      UPASlogFilename = gsub("/sd/", "", UPASlogFilename),
-                      LogFileMode     = ifelse(LogFileMode == 0, "normal", "debug"),
-                      ShutdownReason  = case_when(ShutdownMode == 0 ~ "unknown error",
-                                                  ShutdownMode == 1 ~ "user pushbutton stop",
-                                                  ShutdownMode == 2 ~ "depleted battery",
-                                                  ShutdownMode == 3 ~ "completed preset sample duration",
-                                                  ShutdownMode == 4 ~ "thermal protection",
-                                                  ShutdownMode == 5 ~ "max power at initialization",
-                                                  ShutdownMode == 6 ~ "max power during sample",
-                                                  ShutdownMode == 7 ~ "blocked flow")) %>%
-        dplyr::select(1:match("ShutdownMode",colnames(df)), ShutdownReason, (match("ShutdownMode",colnames(df))+1):ncol(df))
+    dplyr::mutate_at(c("UPASserial","GPSUTCOffset","StartOnNextPowerUp","ProgrammedStartDelay","ProgrammedRuntime",
+                       "VolumetricFlowRate","DutyCycle","DutyCycleWindow",
+                       "GPSEnabled","LogFileMode","LogInterval","AppLock",
+                       "StartBatteryCharge","StartBatteryVoltage","EndBatteryCharge","EndBatteryVoltage",
+                       "ShutdownMode","SampledVolume","SampledRuntime","LoggedRuntime"),
+                     as.numeric) %>%
+    dplyr::mutate_at(c("StartOnNextPowerUp", "GPSEnabled"), as.logical) %>%
+    dplyr::mutate(UPASfirmware    = sapply(strsplit(UPASfirmware,"-"), `[`, 2),
+                  UPASfirmware    = as.numeric(gsub("rev", "", UPASfirmware)),
+                  UPASlogFilename = gsub("/sd/", "", UPASlogFilename),
+                  LogFileMode     = ifelse(LogFileMode == 0, "normal", "debug"),
+                  ShutdownReason  = case_when(ShutdownMode == 0 ~ "unknown error",
+                                              ShutdownMode == 1 ~ "user pushbutton stop",
+                                              ShutdownMode == 2 ~ "depleted battery",
+                                              ShutdownMode == 3 ~ "completed preset sample duration",
+                                              ShutdownMode == 4 ~ "thermal protection",
+                                              ShutdownMode == 5 ~ "max power at initialization",
+                                              ShutdownMode == 6 ~ "max power during sample",
+                                              ShutdownMode == 7 ~ "blocked flow")) %>%
+    dplyr::select(1:match("ShutdownMode",colnames(df)), ShutdownReason, (match("ShutdownMode",colnames(df))+1):ncol(df))
   
   if(df$UPASfirmware == 100){
     
     df <- df %>%
-          dplyr::mutate_at(c("PowerCycles","CumulativeSamplingTime","AverageVolumetricFlow"), as.numeric) %>%
-          dplyr::mutate(StartDateTime = as.POSIXct(StartDateTime, format="%Y-%m-%dT%H:%M:%SUTC", tz="UTC")) 
-        
+      dplyr::mutate_at(c("PowerCycles","CumulativeSamplingTime","AverageVolumetricFlow"), as.numeric) %>%
+      dplyr::mutate(StartDateTime = as.POSIXct(StartDateTime, format="%Y-%m-%dT%H:%M:%SUTC", tz="UTC")) 
+    
     if(update_names){
       
       df <- df %>% dplyr::rename(LifetimeSampleRuntime     = CumulativeSamplingTime,
@@ -79,14 +77,15 @@ read_upas_header <- function(file, update_names=FALSE){
   }else{
     
     df <- df %>%
-          dplyr::mutate_at(c("LifetimeSampleCount","LifetimeSampleRuntime","FlowOffset","AverageVolumetricFlowRate"), as.numeric) %>%
-          dplyr::mutate_at(c("StartDateTimeUTC", "EndDateTimeUTC"), as.POSIXct, format="%Y-%m-%dT%H:%M:%S", tz="UTC") %>%
-          dplyr::mutate(SampleName  = gsub("_+$", "", SampleName),
-                        SampleName  = ifelse(SampleName != "", SampleName, NA),
-                        CartridgeID = gsub("_+$", "", CartridgeID),
-                        CartridgeID = gsub("-+$", "", CartridgeID),
-                        CartridgeID = ifelse(CartridgeID != "", CartridgeID, NA))}
+      dplyr::mutate_at(c("LifetimeSampleCount","LifetimeSampleRuntime","FlowOffset","AverageVolumetricFlowRate"), as.numeric) %>%
+      dplyr::mutate_at(c("StartDateTimeUTC", "EndDateTimeUTC"), as.POSIXct, format="%Y-%m-%dT%H:%M:%S", tz="UTC") %>%
+      dplyr::mutate(SampleName  = gsub("_+$", "", SampleName),
+                    SampleName  = ifelse(SampleName != "", SampleName, NA),
+                    CartridgeID = gsub("_+$", "", CartridgeID),
+                    CartridgeID = gsub("-+$", "", CartridgeID),
+                    CartridgeID = ifelse(CartridgeID != "", CartridgeID, NA))}
   
+  df$file = file
   return(df)
 }
 
@@ -115,8 +114,9 @@ read_upas <- function(file, update_names=FALSE){
   print(file)
   # Get header data
   df_h <- read_upas_header(file, update_names=update_names) %>%
-          dplyr::select(any_of(c("UPASlogFilename","UPASserial","UPASfirmware","SampleName","CartridgeID", 
-                                 "StartDateTimeUTC","StartDateTime","LogFileMode")))
+    dplyr::mutate(file = file) %>% 
+    dplyr::select(any_of(c("UPASlogFilename","UPASserial","UPASfirmware","SampleName","CartridgeID", 
+                           "StartDateTimeUTC","StartDateTime","LogFileMode")))
   
   # Read 103 lines, find the line with the SAMPLE LOG header, the add 1 to get the number of lines to skip
   header_lines <- readLines(file, n=103)
@@ -128,12 +128,12 @@ read_upas <- function(file, update_names=FALSE){
   if(nrow(df) > 0){
     
     df <- cbind(df_h, df) %>%
-          dplyr::mutate(SampleTime = ifelse(SampleTime == "99:99:99", NA, SampleTime),
-                        SampleTime = ifelse(!is.na(SampleTime), strsplit(SampleTime,":"), SampleTime),
-                        SampleTime = as.difftime(3600*as.numeric(sapply(SampleTime, `[`, 1)) + 
-                                                   60*as.numeric(sapply(SampleTime, `[`, 2)) + 
-                                                   as.numeric(sapply(SampleTime, `[`, 3)), units="secs"))
-  
+      dplyr::mutate(SampleTime = ifelse(SampleTime == "99:99:99", NA, SampleTime),
+                    SampleTime = ifelse(!is.na(SampleTime), strsplit(SampleTime,":"), SampleTime),
+                    SampleTime = as.difftime(3600*as.numeric(sapply(SampleTime, `[`, 1)) + 
+                                               60*as.numeric(sapply(SampleTime, `[`, 2)) + 
+                                               as.numeric(sapply(SampleTime, `[`, 3)), units="secs"))
+    
     if("UTCDateTime" %in% colnames(df)){ # For firmware version 100
       
       df <- df %>% dplyr::mutate(UTCDateTime = as.POSIXct(UTCDateTime, format="%Y-%m-%dT%H:%M:%S", tz="UTC")) 
@@ -180,18 +180,17 @@ read_upas <- function(file, update_names=FALSE){
 
 read_diag <- function(file, update_names=TRUE){
   
-  require(dplyr)
   
   # Read in the standard UPAS header data
   df_h <- read_upas_header(file, update_names=update_names) %>%
-          dplyr::select(any_of(c("UPASserial","UPASfirmware","UPASlogFilename","SampleName","CartridgeID", "LogFileMode",
-                                 "StartDateTimeUTC","StartDateTime","StartDateTimeLocal","StartBatteryCharge","StartBatteryVoltage",
-                                 "EndDateTimeUTC","EndDateTimeLocal","EndBatteryCharge","EndBatteryVoltage",
-                                 "ShutdownMode","SampledVolume","SampledRuntime","LoggedRuntime",
-                                 "AverageVolumetricFlowRate","AverageVolumetricFlow")))
+    dplyr::select(any_of(c("UPASserial","UPASfirmware","UPASlogFilename","SampleName","CartridgeID", "LogFileMode",
+                           "StartDateTimeUTC","StartDateTime","StartDateTimeLocal","StartBatteryCharge","StartBatteryVoltage",
+                           "EndDateTimeUTC","EndDateTimeLocal","EndBatteryCharge","EndBatteryVoltage",
+                           "ShutdownMode","SampledVolume","SampledRuntime","LoggedRuntime",
+                           "AverageVolumetricFlowRate","AverageVolumetricFlow")))
   
   if(df_h$LogFileMode != "debug"){
-
+    
     warning(sprintf("Warning: %s is not a debug file. NULL returned.", file))
     return()
     
@@ -215,16 +214,16 @@ read_diag <- function(file, update_names=TRUE){
     cal <- cal[cal != ""]
     
     df_cal <- sapply(strsplit(cal,","), `[`, 2) %>%
-              t() %>%
-              data.frame(stringsAsFactors=F)
+      t() %>%
+      data.frame(stringsAsFactors=F)
     
     colnames(df_cal) <- sapply(strsplit(cal,","), `[`, 1)
     
     df_cal <- df_cal %>%
-              mutate_at(colnames(df_cal)[which(colnames(df_cal) != "CalDateTime")], as.numeric) %>%
-              dplyr::mutate(CalDateTime = as.POSIXct(CalDateTime, tz="UTC",
-                                                     tryFormats=c("%Y-%m-%dT%H:%M:%S",
-                                                                  "%d-%m-%y_%H:%M:%S")))
+      mutate_at(colnames(df_cal)[which(colnames(df_cal) != "CalDateTime")], as.numeric) %>%
+      dplyr::mutate(CalDateTime = as.POSIXct(CalDateTime, tz="UTC",
+                                             tryFormats=c("%Y-%m-%dT%H:%M:%S",
+                                                          "%d-%m-%y_%H:%M:%S")))
     
     # Get diagnostic test results
     diag <- header_lines[(n_diag+1):(n_log-1)]
@@ -237,19 +236,19 @@ read_diag <- function(file, update_names=TRUE){
     }
     
     df_diag <- strsplit(diag, ",") %>%
-               lapply(t) %>%
-               lapply(data.frame, stringsAsFactors=F) %>%
-               dplyr::bind_rows()
+      lapply(t) %>%
+      lapply(data.frame, stringsAsFactors=F) %>%
+      dplyr::bind_rows()
     
     colnames(df_diag) <- c("condition", names_diag)
     
     df_cond <- data.frame(condition=df_diag$condition[!is.na(df_diag$condition)], stringsAsFactors=F) 
     
     df_diag <- df_diag %>%
-               dplyr::select(-condition) %>%
-               dplyr::filter(!is.na(PumpP),
-                             !(PumpP %in% c("(hPa)","PumpP"))) %>%
-               dplyr::mutate_all(as.numeric)
+      dplyr::select(-condition) %>%
+      dplyr::filter(!is.na(PumpP),
+                    !(PumpP %in% c("(hPa)","PumpP"))) %>%
+      dplyr::mutate_all(as.numeric)
     
     # Combine header data, calibration coefficients, and diagnostic test results
     df <- cbind(df_h, df_cal, df_cond, df_diag)

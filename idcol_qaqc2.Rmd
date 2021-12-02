@@ -16,7 +16,7 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
-email = 1
+
 local_tz = "Asia/Dhaka"
 source('r_scripts/load.R') #libraries
 source('r_scripts/UPAS_functions.R') #functions to clean, plot, summarize
@@ -26,43 +26,43 @@ sample_duration_thresholds = c(1296,1584)
 ```
 
 # Cleaning rules
-
 * 
 
 # Load UPAS data
-``` {r load-data, cache = TRUE}
+* 
+``` {r load-data, cache = TRUE,echo = FALSE}
 
-# UPAS data import and check
-upasfilepath <- "/Users/ricardopiedrahita/Dropbox/IDCOL Bangladesh (shared)/Data/UPAS PM"
-
-file_list_upas <- list.files(upasfilepath, pattern='.txt|.TXT', full.names = T,recursive = T) %>% 
+file_list_upas <- list.files("/Users/ricardopiedrahita/Dropbox/IDCOL Bangladesh (shared)/Data/UPAS PM/Field data",
+                             pattern='.txt|.TXT', full.names = T,recursive = T) %>% 
   grep("DIAGNOSTIC", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  
 
-# file_list_upas = file_list_upas[sapply(file_list_upas, file.size) > 10000]
+file_list_upas = file_list_upas[sapply(file_list_upas, file.size) > 10000]
 
 upas_data = rbindlist(lapply(file_list_upas,read_upas),fill=TRUE) 
 
-
 upas_header <- rbindlist(lapply(file_list_upas,read_upas_header)) %>% 
   as.data.frame() %>% 
-  dplyr::arrange(UPASlogFilename,StartDateTimeUTC) %>% 
-  dplyr::mutate(file_start_date = as.Date(StartDateTimeUTC),
+  dplyr::arrange(LoggedRuntime,SampledVolume) %>% 
+  dplyr::mutate(filen = basename(file),
+                file_start_date = as.Date(StartDateTimeUTC),
                 CartridgeID = toupper(CartridgeID),
                 StartDateTimeLocal = with_tz(StartDateTimeUTC, 
                                              tzone=local_tz),
-                date_start = date(StartDateTimeLocal)) %>%
+                date_start = date(StartDateTimeLocal),
+                sample_type = case_when(UPASlogFilename %like% "KIT|Kit|kit" ~ "Kitchen",
+                                        UPASlogFilename %like% "PER|Per|per" ~ "Personal",
+                                        TRUE ~ "")) %>%
   dplyr::select(-UPASfirmware,-LifetimeSampleCount,-LifetimeSampleRuntime,-GPSUTCOffset,ProgrammedStartDelay,-AppLock,-AppVersion,
                 -StartOnNextPowerUp,-LogInterval,-LogFileMode,-file_start_date,-DutyCycleWindow,-GPSEnabled,-ProgrammedStartDelay,
-                -StartBatteryCharge,-EndBatteryCharge,-ShutdownMode,-SampledRuntime,-VolumetricFlowRate,-FlowOffset)
-# dplyr::filter(date(StartDateTimeLocal) %in% date(field_log$excel_datetime_start) | 
-# hour(StartDateTimeLocal) == 0)
+                -StartBatteryCharge,-EndBatteryCharge,-ShutdownMode,-SampledRuntime,-VolumetricFlowRate,-FlowOffset) %>% 
+  dplyr::select(file,StartDateTimeUTC,LoggedRuntime,SampledVolume,ShutdownReason,everything())
+
 DT::datatable(upas_header,caption = "UPAS summary data")
 ```
 
 # Import ODK
+* Survey data is on IDCOL servers and in there own format.
 ```{r import_odk}
-
-
 
 
 ```
@@ -88,40 +88,23 @@ DT::datatable(lascar_meta,caption = "Lascar data summary")
 # Time series Lascar - get full time series of calibrated data, with metadata.
 # Truncation is employed with the tagging approach - any non-tagged points are not from during the deployments
 CO_calibrated_timeseries <- ldply(file_list_lascar, 
-                                  lascar_cali_fun, .progress = 'text',local_tz=local_tz)  
-
-#This is pretty repetitive.
-file_lascar <- file_list_lascar %>% 
-  grep("pilot", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  %>% 
-  grep("2021-3-9_34DACON_C_PS1473_C0214", ., ignore.case = TRUE, value = TRUE, invert = TRUE) %>% 
-  as.data.frame() %>% 
-  dplyr::rename(pathname=".") %>% 
-  dplyr::mutate(pathname = as.character(pathname),
-                filename = file_path_sans_ext(basename(pathname))) %>% 
-  tidyr::separate(filename,c("HHID","fieldworker","stove","download"))
+                                  lascar_cali_fun, .progress = 'text',local_tz=local_tz,
+                                  lascar_cali_coefs = lascar_cali_coefs)  
 
 
 ```
 
 
-# Save and send
-```{r sendemails}
-
+# Save 
+```{r savedatar}
 
 list_of_datasets <- list(
   "UPAS"=upas_header,
   "lascar" = lascar_meta)
 
-        filename = paste0("~/Dropbox/IDCOL Bangladesh (shared)/Data/QA Reports/Instrument Plots/Lascar_",gsub(".csv",".png",plot_name))
 
 filename = paste0("~/Dropbox/IDCOL Bangladesh (shared)/Data/QA Reports/IDCOL_QA_Report_",  Sys.Date(), ".xlsx")
 write.xlsx(list_of_datasets,file = filename)
-
-source('r_scripts/emailfun.R')
-emailfun(email,filename)
-
-
-
 
 
 ```

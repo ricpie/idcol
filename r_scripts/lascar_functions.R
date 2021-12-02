@@ -70,6 +70,8 @@ lascar_ingest <- function(file, output=c('raw_data', 'meta_data'), local_tz="Asi
       
       #Sampling duration
       dur = difftime(max(raw_data$datetime),min(raw_data$datetime),units = 'days')
+      dur_minutes = difftime(max(raw_data$datetime),min(raw_data$datetime),units = 'mins')
+      samplerate_minutes = length(raw_data$datetime)/as.numeric(dur_minutes)
       
       filename = as.data.frame(file) %>% 
         dplyr::mutate(file = file_path_sans_ext(basename(as.character(file)))) %>% 
@@ -85,7 +87,7 @@ lascar_ingest <- function(file, output=c('raw_data', 'meta_data'), local_tz="Asi
         HHID=filename$HHID,
         loggerID=filename$loggerID,
         file_date = filename$date,
-        samplerate_minutes = sample_timediff/60,
+        samplerate_minutes = samplerate_minutes,
         sampling_duration = dur
       )
       
@@ -106,9 +108,9 @@ lascar_ingest <- function(file, output=c('raw_data', 'meta_data'), local_tz="Asi
 }
 
 # file = file_list_lascar[1]
-lascar_qa_fun <- function(file, setShiny=TRUE,output= 'meta_data',local_tz="Asia/Dhaka"){
+lascar_qa_fun <- function(file, setShiny=TRUE,output= 'meta_data',local_tz="Asia/Dhaka",lascar_cali_coefs="lascar_cali_coefs"){
   ingest = tryCatch({
-    ingest <- lascar_ingest(file, output=c('raw_data', 'meta_data'),local_tz="Asia/Dhaka",dummy='dummy_meta_data')
+    ingest <- lascar_ingest(file, output=c('raw_data', 'meta_data'),local_tz="Asia/Dhaka",dummy='dummy_meta_data',lascar_cali_coefs = "lascar_cali_coefs")
   }, error = function(e) {
     print('error ingesting')
     ingest = NULL
@@ -128,6 +130,7 @@ lascar_qa_fun <- function(file, setShiny=TRUE,output= 'meta_data',local_tz="Asia
                        round_date(max(calibrated_data$datetime,na.rm=TRUE),unit="1 minutes"),
                        by = '1 min')
       calibrated_data[,datetime := as.POSIXct(cut(datetime,my_breaks, tz=local_tz))]
+      calibrated_data = calibrated_data[complete.cases(calibrated_data),]
       #Filter the data based on actual start and stop times - once I get them!
       # calibrated_data <- calibrated_data[ecm_tags=='deployed']
       
@@ -136,17 +139,12 @@ lascar_qa_fun <- function(file, setShiny=TRUE,output= 'meta_data',local_tz="Asia
       Daily_avg <- mean(calibrated_data$CO_ppm,na.rm = TRUE)
       Daily_sd <- sd(calibrated_data$CO_ppm,na.rm = TRUE)
       
-      #Calculate hourly average concentration flag
-      max_1hr_avg <- max(bl_check$hr_ave,na.rm = TRUE)
-      
-      #Raise flag if stdev of values is zero.
-      nonresponsive_flag <- if(sd(calibrated_data$CO_ppm,na.rm = TRUE)==0 || sum(is.na(calibrated_data$CO_ppm)) > 0){1}else{0}
       
       #sample duration
       sample_duration <- as.numeric(difftime(max(calibrated_data$datetime), min(calibrated_data$datetime), units='days'))
       sample_duration_flag <- if(sample_duration < sample_duration_thresholds[1]/1440){1}else{0}
       
-      meta_data = cbind(meta_data,max_1hr_avg,Daily_sd,sample_duration_flag)
+      meta_data = cbind(meta_data,Daily_sd,sample_duration_flag)
       
       #Plot the CO data and save it
       tryCatch({ 
@@ -187,7 +185,7 @@ lascar_qa_fun <- function(file, setShiny=TRUE,output= 'meta_data',local_tz="Asia
 }
 
 
-apply_lascar_calibration <- function(loggerIDval,raw_data,lascar_cali_coefs) {
+apply_lascar_calibration <- function(loggerIDval,raw_data,lascar_cali_coefs='lascar_cali_coefs') {
   logger_cali <- as.data.table(lascar_cali_coefs)[LascarID==loggerIDval,]
   if (!nrow(logger_cali)){
     logger_cali <- data.table(
@@ -201,7 +199,7 @@ apply_lascar_calibration <- function(loggerIDval,raw_data,lascar_cali_coefs) {
   calibrated_data
 }
 
-lascar_cali_fun <- function(file,output='calibrated_data',local_tz="Asia/Dhaka"){
+lascar_cali_fun <- function(file,local_tz="Asia/Dhaka",lascar_cali_coefs='lascar_cali_coefs',output='calibrated_data'){
   
   ingest = tryCatch({
     ingest <- lascar_ingest(file, output=c('raw_data', 'meta_data'),local_tz="Asia/Dhaka",dummy='dummy_meta_data')
