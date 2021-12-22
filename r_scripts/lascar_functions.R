@@ -1,7 +1,7 @@
 # fwrite(meta_data, file="r_scripts/lascar_dummy_meta_data.csv") 
 dummy_meta_data <- fread('r_scripts/lascar_dummy_meta_data.csv')
 
-lascar_ingest <- function(file, output=c('raw_data', 'meta_data'), local_tz="Asia/Dhaka",dummy='dummy_meta_data'){
+lascar_ingest <- function(file, output=c('raw_data', 'meta_data'), local_tz="Asia/Dhaka",dummy='dummy_meta_data',lascar_cali_coefs="lascar_cali_coefs"){
   dummy_meta_data <- get(dummy, envir=.GlobalEnv)
   badfileflag <- 0
   
@@ -117,6 +117,8 @@ lascar_qa_fun <- function(file, setShiny=TRUE,output= 'meta_data',local_tz="Asia
   })
   
   if(is.null(ingest)){return(NULL)}else{
+    
+    sample_duration_thresholds = c(1296,1584)
     
     meta_data <- ingest$meta_data
     if('flags' %in% colnames(meta_data)){

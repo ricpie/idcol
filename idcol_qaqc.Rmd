@@ -1,6 +1,6 @@
 ---
 title: "idcol_qaqc"
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = paste0(substr(inputFile,1,nchar(inputFile)-4),Sys.Date(),'.html')) })
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = paste0('r_markdowns/',basename(gsub(".Rmd","_",inputFile)),Sys.Date(),'.html')) })
 
 output: 
   html_document:
@@ -22,15 +22,12 @@ source('r_scripts/load.R') #libraries
 source('r_scripts/UPAS_functions.R') #functions to clean, plot, summarize
 source('r_scripts/lascar_functions.R')
 
-sample_duration_thresholds = c(1296,1584)
 ```
 
-# Cleaning rules
-* 
-
 # Load UPAS data
-* 
-``` {r load-data, cache = TRUE,echo = FALSE}
+* Arranged by sample runtime and volume so we can see the problematic ones at the top of the list
+* Flow flag if flow is outside of +-20% of 1lpm
+``` {r load-data, cache = TRUE,echo = FALSE,include  = TRUE}
 
 file_list_upas <- list.files("/Users/ricardopiedrahita/Dropbox/IDCOL Bangladesh (shared)/Data/UPAS PM/Field data",
                              pattern='.txt|.TXT', full.names = T,recursive = T) %>% 
@@ -49,15 +46,27 @@ upas_header <- rbindlist(lapply(file_list_upas,read_upas_header)) %>%
                 StartDateTimeLocal = with_tz(StartDateTimeUTC, 
                                              tzone=local_tz),
                 date_start = date(StartDateTimeLocal),
-                sample_type = case_when(UPASlogFilename %like% "KIT|Kit|kit" ~ "Kitchen",
-                                        UPASlogFilename %like% "PER|Per|per" ~ "Personal",
-                                        TRUE ~ "")) %>%
+                sample_type = case_when(filen %like% "KIT|Kit|kit" ~ "Kitchen",
+                                        filen %like% "PER|Per|per" ~ "Personal",
+                                        TRUE ~ ""),
+                flow_flag = case_when(AverageVolumetricFlowRate<.8 | AverageVolumetricFlowRate>1.2 ~ 1,
+                                      TRUE ~ 0),
+                duration_flag = case_when(LoggedRuntime<.8*24 | LoggedRuntime>1.2*24 ~ 1,
+                                          TRUE ~ 0),
+                bad_flag = if_else(duration_flag == 1 | flow_flag == 1, "sample_bad","sample_good")) %>%
   dplyr::select(-UPASfirmware,-LifetimeSampleCount,-LifetimeSampleRuntime,-GPSUTCOffset,ProgrammedStartDelay,-AppLock,-AppVersion,
                 -StartOnNextPowerUp,-LogInterval,-LogFileMode,-file_start_date,-DutyCycleWindow,-GPSEnabled,-ProgrammedStartDelay,
                 -StartBatteryCharge,-EndBatteryCharge,-ShutdownMode,-SampledRuntime,-VolumetricFlowRate,-FlowOffset) %>% 
-  dplyr::select(file,StartDateTimeUTC,LoggedRuntime,SampledVolume,ShutdownReason,everything())
+  dplyr::select(file,StartDateTimeUTC,sample_type,bad_flag,LoggedRuntime,SampledVolume,ShutdownReason,everything()) 
 
-DT::datatable(upas_header,caption = "UPAS summary data")
+DT::datatable(upas_header,caption = "Summary of each UPAS deployment data")
+
+DT::datatable(upas_header %>% 
+                dplyr::filter(bad_flag %like% "sample_good") %>% 
+                dplyr::group_by(sample_type) %>% 
+                dplyr::summarise(n = n()),caption = "Summary of 'good' samples collected")
+
+
 ```
 
 # Import ODK
@@ -68,12 +77,15 @@ DT::datatable(upas_header,caption = "UPAS summary data")
 ```
 
 # Load Lascar data
-```{r import_cooking}
+* Applies the calibrations to the data
+* Generates sample summary stats
+* Saves calibrated time series for future use
+```{r import_cooking,echo = FALSE,include = TRUE}
 
 # UPAS data import and check
 lascarfilepath <- "~/Dropbox/IDCOL Bangladesh (shared)/Data/Lascar CO" 
-file_list_lascar <- list.files(lascarfilepath, pattern='.txt|.TXT', full.names = T,recursive = T) # %>% 
-# grep("DIAGNOSTIC", ., ignore.case = TRUE, value = TRUE, invert = TRUE)  
+file_list_lascar <- list.files(lascarfilepath, pattern='.txt|.TXT', full.names = T,recursive = T)  %>% 
+  grep("test", ., ignore.case = TRUE, value = TRUE, invert = TRUE)
 
 lascar_cali_coefs <- read_xlsx("~/Dropbox/IDCOL Bangladesh (shared)/Data/Lascar CO/Initial CO cal ests/IDCOL Lascar Calibrations_Jan2020Lascars.xlsx",skip = 1)  %>%
   dplyr::rename_all(function(x) gsub(" ","", x)) %>% 
@@ -82,20 +94,20 @@ lascar_cali_coefs <- read_xlsx("~/Dropbox/IDCOL Bangladesh (shared)/Data/Lascar 
 
 
 # Lascar data
-lascar_meta <- ldply(file_list_lascar, lascar_qa_fun, .progress = 'text',local_tz=local_tz)  
-DT::datatable(lascar_meta,caption = "Lascar data summary")
+lascar_meta <- ldply(file_list_lascar, lascar_qa_fun,local_tz=local_tz,lascar_cali_coefs=lascar_cali_coefs)  
+DT::datatable(lascar_meta %>% dplyr::select(-basename),caption = "Lascar data summary")
 
 # Time series Lascar - get full time series of calibrated data, with metadata.
 # Truncation is employed with the tagging approach - any non-tagged points are not from during the deployments
 CO_calibrated_timeseries <- ldply(file_list_lascar, 
-                                  lascar_cali_fun, .progress = 'text',local_tz=local_tz,
+                                  lascar_cali_fun,local_tz=local_tz,
                                   lascar_cali_coefs = lascar_cali_coefs)  
 
 
 ```
 
 
-# Save 
+# Save processed data
 ```{r savedatar}
 
 list_of_datasets <- list(
@@ -104,7 +116,6 @@ list_of_datasets <- list(
 
 
 filename = paste0("~/Dropbox/IDCOL Bangladesh (shared)/Data/QA Reports/IDCOL_QA_Report_",  Sys.Date(), ".xlsx")
-write.xlsx(list_of_datasets,file = filename)
-
+write.xlsx(list_of_datasets,file = filename,overwrite = T)
 
 ```
